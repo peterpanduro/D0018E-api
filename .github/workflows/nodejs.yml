@@ -24,8 +24,3 @@ jobs:
         npm test
       env:
         CI: true
-
-  publish:
-    needs: [build]
-    steps:
-      - uses: actions/checkout@v1
