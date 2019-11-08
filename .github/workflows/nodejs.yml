@@ -34,7 +34,7 @@ jobs:
       uses: actions/setup-node@v1
       with:
         node-version: ${{ matrix.node-version }}
-      name: deploy
+    - name: deploy
       run: |
         ssh ${{ DEPLOY_USERNAME }} ${{ DEPLOY_URL }} -p ${{ DEPLOY_PORT }}
         ${{ DEPLOY_PASSWORD }}
