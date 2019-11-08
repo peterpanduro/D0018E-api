@@ -24,24 +24,4 @@ jobs:
         npm test
       env:
         CI: true
-
-  publish:
-    runs-on: ubuntu-latest
-
-    steps:
-    - uses: actions/checkout@v1
-    - name: Use Node.js ${{ matrix.node-version }}
-      uses: actions/setup-node@v1
-      with:
-        node-version: ${{ matrix.node-version }}
-    - name: deploy
-      run: |
-        ssh ${{ DEPLOY_USERNAME }} ${{ DEPLOY_URL }} -p ${{ DEPLOY_PORT }}
-        ${{ DEPLOY_PASSWORD }}
-        rm -r /var/www/html/d0018e/api
-        mkdir /var/www/html/d0018e/api
-        cd /var/www/html/d0018e/api
-        npm ci
-        npm run build --only=prod --if-present
-
         
