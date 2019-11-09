@@ -13,7 +13,7 @@ const dbConnection = mysql.createConnection({
 
 // API endpoints
 app.get('/', (req, res) => {
-    res.send('Hello World once again! And again')
+    res.send('Hello World once again! And again, again')
 })
 
 // Run server
