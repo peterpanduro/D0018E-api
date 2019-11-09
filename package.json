@@ -4,7 +4,9 @@
   "description": "API for the course D0018E at Luleå university of technology",
   "main": "index.js",
   "scripts": {
-    "start": "npx nodemon",
+    "start": "forever start index.js",
+    "stop": "forever stop index.js",
+    "dev": "npx nodemon index,js",
     "test": "mocha"
   },
   "author": "",
