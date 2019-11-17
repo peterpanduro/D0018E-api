@@ -1,0 +1,239 @@
+openapi: 3.0.2
+info:
+  title: DataMerch
+  version: 0.0.1
+servers:
+  - url: http://37.123.183.130:3000/api/
+
+components:
+  securitySchemes:
+    jwt:
+      type: http
+      scheme: bearer
+      bearerFormat: Json Web Token
+  responses:
+    UnathorizedError:
+      description: Unauthorized
+      content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  errorCode:
+                    type: number
+                  error:
+                    type: string
+    BadRequestError:
+      description: Bad request
+      content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  errorCode:
+                    type: number
+                  error:
+                    type: string
+    ForbiddenError:
+      description: Forbidden
+      content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  errorCode:
+                    type: number
+                  error:
+                    type: string
+  schemas:
+    user:
+      type: object
+      properties:
+        id:
+          type: number
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        verified:
+          type: boolean
+          default: true
+        created:
+          type: string
+          format: date
+        streetAddress:
+          type: string
+        postNr:
+          type: string
+        city:
+          type: string
+        country:
+          type: string
+        co:
+          type: string
+    product:
+      type: object
+      properties:
+        id:
+          type: number
+        name:
+          type: string
+        price:
+          type: number
+        stock:
+          type: number
+        category:
+          type: number
+        discontinued:
+          type: boolean
+          default: false
+  parameters:
+    jwt:
+      in: header
+      name: jwt
+      description: A json web token
+      required: true
+      schema:
+        type: string
+      
+
+
+paths:
+  "/user":
+    post:
+      tags:
+        - User
+      description: Get the currently logged in user
+      parameters:
+        - $ref: '#/components/parameters/jwt'
+      responses:
+        '200':
+          description: Success
+          
+        '401':
+          $ref: '#/components/responses/UnathorizedError'
+    put:
+      tags:
+        - User
+      description: Create a new user
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/user'
+      responses:
+        '200':
+          description: 'Success'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+    patch:
+      tags:
+        - User
+      description: Update a user
+      parameters:
+        - $ref: '#/components/parameters/jwt'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/user'
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  jwt:
+                    type: string
+        '401':
+          $ref: '#/components/responses/UnathorizedError'
+
+  "/user/login":
+    post:
+      tags:
+        - User
+      description: Login a user
+      parameters:
+      - name: email
+        in: header
+        description: the users email
+        required: true
+        schema:
+          type: string
+          format: email
+      - name: password
+        in: header
+        description: The users password, hashed with brypt
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  jwt:
+                    type: string
+        '401':
+          $ref: '#/components/responses/UnathorizedError'
+  "/products":
+    get:
+      tags:
+        - Products
+      description: Get all products
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/product'
+  "/product":
+    put:
+      tags:
+        - Products
+      description: Insert a new product
+      responses:
+        '200':
+          description: Success
+        '401':
+          $ref: '#/components/responses/UnathorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+  "/product/{id}":
+    get:
+      tags:
+        - Products
+      description: Get a specific product
+      responses:
+        '200':
+          description: success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/product'
+    patch:
+      tags:
+        - Products
+      parameters:
+        - $ref: '#/components/parameters/jwt'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/product'
+      responses:
+        '200':
+          description: Success
+        '401':
+          $ref: '#/components/responses/UnathorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
