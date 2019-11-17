@@ -217,6 +217,18 @@
                     }
                 }
             }
+        },
+        "/product/{id}": {
+            "get": {
+                "responses": {
+                    "200": {
+                        "description": "Success"
+                    }
+                }
+            },
+            "put": {
+                
+            }
         }
     }
 }
