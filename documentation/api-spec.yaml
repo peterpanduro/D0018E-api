@@ -84,10 +84,52 @@ components:
         stock:
           type: number
         category:
-          type: number
+          type: string
         discontinued:
           type: boolean
           default: false
+        tags:
+          type: array
+          items:
+            type: string
+    cart:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            properties:
+              product:
+                type: number
+              quantity:
+                type: number
+        voucher:
+          type: string
+    order:
+      type: object
+      properties:
+        orderId:
+          type: number
+        items:
+          type: array
+          items:
+            properties:
+              product:
+                type: number
+              quantity:
+                type: number
+              unitPrice:
+                type: number
+        voucher:
+          type: string
+        status:
+          type: string
+        orderDate:
+          type: string
+          format: date
+        shippedDate:
+          type: string
+          format: date
   parameters:
     jwt:
       in: header
@@ -233,6 +275,103 @@ paths:
       responses:
         '200':
           description: Success
+        '401':
+          $ref: '#/components/responses/UnathorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+
+  "/cart":
+    put:
+      tags:
+        - Cart
+      description: Create new cart
+      parameters:
+        - $ref: '#/components/parameters/jwt'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/cart'
+      responses:
+        '200':
+          description: 'Success'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  cartId:
+                    type: number
+        '401':
+          $ref: '#/components/responses/UnathorizedError'
+  "/cart/{cart_id}":
+    get:
+      tags:
+        - Cart
+      description: Get a cart
+      parameters:
+        - $ref: '#/components/parameters/jwt'
+        - name: cart_id
+          in: path
+          required: true
+          schema:
+            type: number
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/cart'
+        '401':
+          $ref: '#/components/responses/UnathorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+  "/order/checkout/{cart_id}":
+    post:
+      tags:
+        - Order
+      description: Checkout a cart
+      parameters:
+        - $ref: '#/components/parameters/jwt'
+        - name: cart_id
+          in: path
+          required: true
+          schema:
+            type: number
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  orderId:
+                    type: number
+        '401':
+          $ref: '#/components/responses/UnathorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+  "/orders":
+    post:
+      tags:
+        - Order
+      description: Get all orders from user
+      parameters:
+        - $ref: '#/components/parameters/jwt'
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    order:
+                      $ref: '#/components/schemas/order'
         '401':
           $ref: '#/components/responses/UnathorizedError'
         '403':
