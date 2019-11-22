@@ -143,7 +143,7 @@ components:
 
 paths:
   "/user":
-    post:
+    get:
       tags:
         - User
       description: Get the currently logged in user
@@ -155,7 +155,7 @@ paths:
           
         '401':
           $ref: '#/components/responses/UnathorizedError'
-    put:
+    post:
       tags:
         - User
       description: Create a new user
@@ -239,7 +239,7 @@ paths:
                 items:
                   $ref: '#/components/schemas/product'
   "/product":
-    put:
+    post:
       tags:
         - Products
       description: Insert a new product
@@ -281,7 +281,7 @@ paths:
           $ref: '#/components/responses/ForbiddenError'
 
   "/cart":
-    put:
+    post:
       tags:
         - Cart
       description: Create new cart
@@ -327,6 +327,29 @@ paths:
           $ref: '#/components/responses/UnathorizedError'
         '403':
           $ref: '#/components/responses/ForbiddenError'
+    put:
+      tags:
+        - Cart
+      description: Update a cart
+      parameters:
+        - $ref: '#/components/parameters/jwt'
+        - name: cart_id
+          in: path
+          required: true
+          schema:
+            type: number
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/cart'
+        '401':
+          $ref: '#/components/responses/UnathorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+
   "/order/checkout/{cart_id}":
     post:
       tags:
@@ -372,6 +395,29 @@ paths:
                   properties:
                     order:
                       $ref: '#/components/schemas/order'
+        '401':
+          $ref: '#/components/responses/UnathorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+  "/order/{order_id}":
+    post:
+      tags:
+        - Order
+      description: Get an order
+      parameters:
+        - $ref: '#/components/parameters/jwt'
+        - name: order_id
+          in: path
+          required: true
+          schema:
+            type: number
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/order'
         '401':
           $ref: '#/components/responses/UnathorizedError'
         '403':
