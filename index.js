@@ -57,22 +57,32 @@ app.post('/api/user/login', (req, res) => {
 })
 
 app.get('/api/user', (req, res) => {
+    verifyToken(req, (status, response) => {
+        res.status(status);
+        res.send(response);
+    })
+})
+
+/*
+ * Verify Jsonwebtoken (JWT)
+ * Uses callback with parameters (status, response)
+ * If status != 200, an response is an error object.
+ * If status == 200, response is decoded JWT.
+ */
+function verifyToken(req, callback) {
     const token = req.headers.jwt;
     if (!token) {
-        res.status(401)
-        res.send({errorCode: 401, error: "UNAUTHORIZED", description: "No JWT provided"});
+        callback(401, {errorCode: 401, error: "UNAUTHORIZED", description: "No JWT provided"});
     } else {
-        jwt.verify(token, process.env.JWT_SECRET, function(err, decoded) {
+        jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
             if (err) {
-                res.status(401);
-                res.send({errorCode: 401, error: "UNAUTHORIZED", description: "JWT invalid"});
+                callback(401, {errorCode: 401, error: "UNAUTHORIZED", description: "JWT invalid"});
             } else {
-                res.status(200);
-                res.send(decoded);
+                callback(200, decoded);
             }
         });
     }
-})
+}
 
 // Run server
 app.listen(port, () => {
