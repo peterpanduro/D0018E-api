@@ -1,27 +1,25 @@
+"use strict"
+require('dotenv').config()
 const express = require('express')
+const jwt = require('jsonwebtoken')
 const mysql = require('mysql')
 const app = express()
-const port = 3001
+/* Swagger stuff */
 const swaggerUi = require('swagger-ui-express')
 const fs = require('fs')
 const jsyaml = require('js-yaml')
 const spec = fs.readFileSync('swagger.yaml', 'utf8')
 const swaggerDoc = jsyaml.safeLoad(spec)
-const jwt = require('jsonwebtoken')
-require('dotenv').config()
 
 const dbConnection = mysql.createConnection({
-    host: 'localhost',
-    port: '3306',
-    user: 'root',
-    password: 'secretpassword',
-    database: 'datamerch'
+    host: process.env.DB_HOST,
+    port: process.env.DB_PORT,
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    database: process.env.DB_NAME
 })
 
 // API endpoints
-app.get('/', (req, res) => {
-    res.send('Hello World!');
-})
 app.get('/api/products', (req, res) => {
     dbConnection.query(`SELECT * FROM Product`, function(error, results, fields) {
         if (error) {
@@ -45,11 +43,12 @@ app.get('/api/product/:productId', (req, res) => {
         }
     })
 })
-//app.use('/api', swaggerUi.serve, swaggerUi.setup(swaggerDoc));
+
+app.use('/swagger', swaggerUi.serve, swaggerUi.setup(swaggerDoc));
 
 app.post('/api/user/login', (req, res) => {
     const email = req.headers.email;
-    const password = req.headers.password
+    const password = req.headers.password;
     // Check DB
     var token = jwt.sign({ email: email, password: password }, process.env.JWT_SECRET, { expiresIn: '30min' });
     res.status(200);
@@ -57,7 +56,8 @@ app.post('/api/user/login', (req, res) => {
 })
 
 app.get('/api/user', (req, res) => {
-    verifyToken(req, (status, response) => {
+    verifyToken(req.headers.jwt, (status, response) => {
+        // TODO: Get user from DB
         res.status(status);
         res.send(response);
     })
@@ -69,8 +69,7 @@ app.get('/api/user', (req, res) => {
  * If status != 200, an response is an error object.
  * If status == 200, response is decoded JWT.
  */
-function verifyToken(req, callback) {
-    const token = req.headers.jwt;
+function verifyToken(token, callback) {
     if (!token) {
         callback(401, {errorCode: 401, error: "UNAUTHORIZED", description: "No JWT provided"});
     } else {
@@ -85,6 +84,7 @@ function verifyToken(req, callback) {
 }
 
 // Run server
+let port = process.env.EXPRESS_PORT
 app.listen(port, () => {
     console.log(`Example app listening on port ${port}`);
     // dbConnection.connect(function(err) {
