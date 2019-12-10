@@ -1,3 +1,4 @@
+/* Imports and requires */
 "use strict"
 require('dotenv').config()
 const express = require('express')
@@ -11,6 +12,20 @@ const jsyaml = require('js-yaml')
 const spec = fs.readFileSync('swagger.yaml', 'utf8')
 const swaggerDoc = jsyaml.safeLoad(spec)
 
+/* Start server */
+let port = process.env.EXPRESS_PORT
+app.listen(port, () => {
+    console.log(`Example app listening on port ${port}`);
+    // dbConnection.connect(function(err) {
+    //     if (err) {
+    //         console.log(err);
+    //         throw err;
+    //     }
+    //     console.log('Database connected');
+    // })
+})
+
+/* DB */
 const dbConnection = mysql.createConnection({
     host: process.env.DB_HOST,
     port: process.env.DB_PORT,
@@ -19,7 +34,31 @@ const dbConnection = mysql.createConnection({
     database: process.env.DB_NAME
 })
 
-// API endpoints
+/* Helper functions */
+
+/*
+ * Verify Jsonwebtoken (JWT)
+ * Uses callback with parameters (status, response)
+ * If status != 200, an response is an error object.
+ * If status == 200, response is decoded JWT.
+ */
+function verifyToken(token, callback) {
+    if (!token) {
+        callback(401, {errorCode: 401, error: "UNAUTHORIZED", description: "No JWT provided"});
+    } else {
+        jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
+            if (err) {
+                callback(401, {errorCode: 401, error: "UNAUTHORIZED", description: "JWT invalid"});
+            } else {
+                callback(200, decoded);
+            }
+        });
+    }
+}
+
+/* API endpoints */
+app.use('/swagger', swaggerUi.serve, swaggerUi.setup(swaggerDoc));
+
 app.get('/api/products', (req, res) => {
     dbConnection.query(`SELECT * FROM Product`, function(error, results, fields) {
         if (error) {
@@ -44,8 +83,6 @@ app.get('/api/product/:productId', (req, res) => {
     })
 })
 
-app.use('/swagger', swaggerUi.serve, swaggerUi.setup(swaggerDoc));
-
 app.post('/api/user/login', (req, res) => {
     const email = req.headers.email;
     const password = req.headers.password;
@@ -61,37 +98,4 @@ app.get('/api/user', (req, res) => {
         res.status(status);
         res.send(response);
     })
-})
-
-/*
- * Verify Jsonwebtoken (JWT)
- * Uses callback with parameters (status, response)
- * If status != 200, an response is an error object.
- * If status == 200, response is decoded JWT.
- */
-function verifyToken(token, callback) {
-    if (!token) {
-        callback(401, {errorCode: 401, error: "UNAUTHORIZED", description: "No JWT provided"});
-    } else {
-        jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
-            if (err) {
-                callback(401, {errorCode: 401, error: "UNAUTHORIZED", description: "JWT invalid"});
-            } else {
-                callback(200, decoded);
-            }
-        });
-    }
-}
-
-// Run server
-let port = process.env.EXPRESS_PORT
-app.listen(port, () => {
-    console.log(`Example app listening on port ${port}`);
-    // dbConnection.connect(function(err) {
-    //     if (err) {
-    //         console.log(err);
-    //         throw err;
-    //     }
-    //     console.log('Database connected');
-    // })
 })
