@@ -13,8 +13,8 @@ require('dotenv').config()
 const dbConnection = mysql.createConnection({
     host: 'localhost',
     port: '3306',
-    user: 'root',
-    password: 'secretpassword',
+    user: 'api',
+    password: 'root',
     database: 'datamerch'
 })
 
@@ -45,7 +45,25 @@ app.get('/api/product/:productId', (req, res) => {
         }
     })
 })
-//app.use('/api', swaggerUi.serve, swaggerUi.setup(swaggerDoc));
+app.get('/api/category', (req, res) => {
+    dbConnection.query(`SELECT * FROM Category`, function(error, results, fields) {
+        if (error) {
+            res.send(error);
+        } else {
+            res.send(JSON.stringify(results));
+        }
+    })
+})
+app.get('/api/category/:categoryId', (req, res) => {
+    const cId = req.params.categoryId;
+    dbConnection.query(`SELECT * FROM Category WHERE ID = ${cId}`, function(error, results, fields) {
+        if (error) {
+            res.send(error);
+        } else {
+            res.send(JSON.stringify(results));
+        }
+    })
+})
 
 app.post('/api/user/login', (req, res) => {
     const email = req.headers.email;
