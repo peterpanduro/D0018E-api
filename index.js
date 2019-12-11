@@ -64,19 +64,49 @@ function verifyToken(token, callback) {
 /* User */
 
 app.post('/user/login', (req, res) => {
-    const email = req.headers.email;
-    const password = req.headers.password;
-    // Check DB
-    var token = jwt.sign({ email: email, password: password }, process.env.JWT_SECRET, { expiresIn: '30min' });
-    res.status(200);
-    res.send(JSON.stringify({jwt: token}));
+    const query = `SELECT * FROM User WHERE Email = '${req.headers.email}' AND Hash = '${req.headers.password}'`;
+    dbConnection.query(query, (error, results, fields) => {
+        if (error) {
+            res.status(401);
+            res.send({errorCode: 401, error: "UNAUTHORIZED", description: "No user with that combination exist"});
+        } else {
+            if (results.length == 0) {
+                res.status(401);
+                res.send({errorCode: 401, error: "UNAUTHORIZED", description: "No user with that combination exist"});
+            }
+            if (results.length == 1) {
+                var token = jwt.sign({ id: results[0].ID }, process.env.JWT_SECRET, { expiresIn: '30min' });
+                res.status(200);
+                res.send(JSON.stringify({jwt: token}));
+            }
+            if (results.length > 1) {
+                res.status(500);
+                res.send("THIS SHOULDNT BE HAPPENING");
+            }
+        }
+    });
 })
 
 app.get('/user', (req, res) => {
     verifyToken(req.headers.jwt, (status, response) => {
-        // TODO: Get user from DB
-        res.status(status);
-        res.send(response);
+        if (status != 200) {
+            res.status(status);
+            res.send(response);
+        }
+        dbConnection.query(`SELECT * FROM User WHERE ID = ${response.id}`, (error, results, fields) => {
+            if (error) {
+                res.status(500);
+                res.send({errorCode: 500, error: "UNKNOWN SERVER ERROR", description: error});
+            } else {
+                if (results.length == 1) {
+                    res.status(200);
+                    res.send(results[0]);
+                } else {
+                    res.status(500);
+                    res.send({errorCode: 500, error: "UNKNOWN SERVER ERROR", description: "For some reason GET /user didnt return a single user"});
+                }
+            }
+        })
     })
 })
 
@@ -89,7 +119,7 @@ app.get('/products', (req, res) => {
     } else if (req.query.category != undefined) {
         query = ` WHERE Category = ${req.query.category}`
     }
-    dbConnection.query(`SELECT * FROM Product${query}`, function(error, results, fields) {
+    dbConnection.query(`SELECT * FROM Product${query}`, (error, results, fields) => {
         if (error) {
             res.status(500)
             res.send(error);
@@ -100,8 +130,8 @@ app.get('/products', (req, res) => {
     })
 })
 app.get('/product/:productId', (req, res) => {
-    const pId = req.params.productId
-    dbConnection.query(`SELECT * FROM Product where ID = ${pId}`, function(error, results, fields) {
+    const pId = req.params.productId;
+    dbConnection.query(`SELECT * FROM Product where ID = ${pId}`, (error, results, fields) => {
         if (error) {
             res.status(500)
             res.send(error);
