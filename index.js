@@ -16,13 +16,13 @@ const swaggerDoc = jsyaml.safeLoad(spec)
 let port = process.env.EXPRESS_PORT
 app.listen(port, () => {
     console.log(`Example app listening on port ${port}`);
-    // dbConnection.connect(function(err) {
-    //     if (err) {
-    //         console.log(err);
-    //         throw err;
-    //     }
-    //     console.log('Database connected');
-    // })
+    dbConnection.connect(function(err) {
+        if (err) {
+            console.log(err);
+            throw err;
+        }
+        console.log('Database connected');
+    })
 })
 
 /* DB */
@@ -59,8 +59,14 @@ function verifyToken(token, callback) {
 /* API endpoints */
 app.use('/swagger', swaggerUi.serve, swaggerUi.setup(swaggerDoc));
 
-app.get('/api/products', (req, res) => {
-    dbConnection.query(`SELECT * FROM Product`, function(error, results, fields) {
+app.get('/products', (req, res) => {
+    var query = "";
+    if (req.query.search != undefined) {
+        query = ` WHERE (INSTR(Name, '${req.query.search}') > 0) OR (INSTR(Description, '${req.query.search}') > 0)`
+    } else if (req.query.category != undefined) {
+        query = ` WHERE Category = ${req.query.category}`
+    }
+    dbConnection.query(`SELECT * FROM Product${query}`, function(error, results, fields) {
         if (error) {
             res.status(500)
             res.send(error);
@@ -70,7 +76,7 @@ app.get('/api/products', (req, res) => {
         }
     })
 })
-app.get('/api/product/:productId', (req, res) => {
+app.get('/product/:productId', (req, res) => {
     const pId = req.params.productId
     dbConnection.query(`SELECT * FROM Product where ID = ${pId}`, function(error, results, fields) {
         if (error) {
@@ -83,7 +89,7 @@ app.get('/api/product/:productId', (req, res) => {
     })
 })
 
-app.post('/api/user/login', (req, res) => {
+app.post('/user/login', (req, res) => {
     const email = req.headers.email;
     const password = req.headers.password;
     // Check DB
@@ -92,7 +98,7 @@ app.post('/api/user/login', (req, res) => {
     res.send(JSON.stringify({jwt: token}));
 })
 
-app.get('/api/user', (req, res) => {
+app.get('/user', (req, res) => {
     verifyToken(req.headers.jwt, (status, response) => {
         // TODO: Get user from DB
         res.status(status);
