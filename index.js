@@ -25,6 +25,9 @@ app.listen(port, () => {
     })
 })
 
+/* Swagger */
+app.use('/swagger', swaggerUi.serve, swaggerUi.setup(swaggerDoc));
+
 /* DB */
 const dbConnection = mysql.createConnection({
     host: process.env.DB_HOST,
@@ -57,7 +60,27 @@ function verifyToken(token, callback) {
 }
 
 /* API endpoints */
-app.use('/swagger', swaggerUi.serve, swaggerUi.setup(swaggerDoc));
+
+/* User */
+
+app.post('/user/login', (req, res) => {
+    const email = req.headers.email;
+    const password = req.headers.password;
+    // Check DB
+    var token = jwt.sign({ email: email, password: password }, process.env.JWT_SECRET, { expiresIn: '30min' });
+    res.status(200);
+    res.send(JSON.stringify({jwt: token}));
+})
+
+app.get('/user', (req, res) => {
+    verifyToken(req.headers.jwt, (status, response) => {
+        // TODO: Get user from DB
+        res.status(status);
+        res.send(response);
+    })
+})
+
+/* Products */
 
 app.get('/products', (req, res) => {
     var query = "";
@@ -89,19 +112,6 @@ app.get('/product/:productId', (req, res) => {
     })
 })
 
-app.post('/user/login', (req, res) => {
-    const email = req.headers.email;
-    const password = req.headers.password;
-    // Check DB
-    var token = jwt.sign({ email: email, password: password }, process.env.JWT_SECRET, { expiresIn: '30min' });
-    res.status(200);
-    res.send(JSON.stringify({jwt: token}));
-})
-
-app.get('/user', (req, res) => {
-    verifyToken(req.headers.jwt, (status, response) => {
-        // TODO: Get user from DB
-        res.status(status);
-        res.send(response);
-    })
-})
+/* Categories */
+/* Cart */
+/* Order */
