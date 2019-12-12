@@ -3,7 +3,7 @@ info:
   title: DataMerch
   version: "0.0.1"
 servers:
-  - url: "http://37.123.183.130:3000/api/"
+  - url: "http://api.d0018e.pndro.se/"
 
 components:
   securitySchemes:
