@@ -235,7 +235,7 @@ app.get("/products", (req, res) => {
     query = ` WHERE Category = ${req.query.category}`;
   }
   dbConnection.query(
-    `SELECT * FROM Product${query}`,
+    `SELECT * FROM vProductInfo${query}`,
     (error, results, fields) => {
       if (error) {
         res.status(500);
