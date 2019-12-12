@@ -7,6 +7,8 @@ const bcrypt = require("bcryptjs");
 const mysql = require("mysql");
 const app = express();
 const cors = require("cors");
+const url = require('url')
+const bodyParser = require('body-parser')
 /* Swagger stuff */
 const swaggerUi = require("swagger-ui-express");
 const fs = require("fs");
@@ -38,6 +40,7 @@ app.listen(port, () => {
 
 /* Middleware and stuff */
 app.use(cors());
+app.use(bodyParser.json())
 app.use("/swagger", swaggerUi.serve, swaggerUi.setup(swaggerDoc));
 
 /* Helper functions */
@@ -123,7 +126,7 @@ app.post("/user/login", (req, res) => {
           const token = jwt.sign(
             { id: dbResult[0].ID },
             process.env.JWT_SECRET,
-            { expiresIn: "30min" }
+            { expiresIn: "30d" }
           );
           res.status(200);
           res.json({jwt: token});
@@ -226,15 +229,15 @@ app.post("/user", (req, res) => {
 /* Products */
 
 app.get("/products", (req, res) => {
+  var url_params = url.parse(req.url, true);
+  var q = url_params.query;
   var query = "";
-  console.log(req.query);
   if (req.query.search != undefined) {
     query = ` WHERE (INSTR(Name, '${req.query.search}') > 0) OR (INSTR(Description, '${req.query.search}') > 0)`;
   } else if (req.query.category != undefined) {
     query = ` WHERE Category = ${req.query.category}`;
   }
   const dbQuery = `SELECT * FROM vProductInfo${query}`;
-  console.log(dbQuery);
   dbConnection.query(
     dbQuery,
     (error, results, fields) => {
@@ -348,5 +351,13 @@ app.post("/product", (req, res) => {
 });
 
 /* Categories */
+
+app.get('/categories', (req, res) => {
+  dbConnection.query(`SELECT * FROM Category`, (dbError, dbResult, fields) => {
+    res.status(200);
+    res.json(dbResult);
+  })
+})
+
 /* Cart */
 /* Order */
