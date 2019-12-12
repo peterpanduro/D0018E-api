@@ -233,7 +233,7 @@ app.get("/products", (req, res) => {
   } else if (req.query.category != undefined) {
     query = ` WHERE Category = ${req.query.category}`;
   }
-  const dbQuery = `SELECT * FROM Product${query}`;
+  const dbQuery = `SELECT * FROM vProductInfo${query}`;
   console.log(dbQuery);
   dbConnection.query(
     dbQuery,
