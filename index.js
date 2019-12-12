@@ -7,7 +7,6 @@ const bcrypt = require("bcryptjs");
 const mysql = require("mysql");
 const app = express();
 const cors = require("cors");
-const bodyParser = require("body-parser");
 /* Swagger stuff */
 const swaggerUi = require("swagger-ui-express");
 const fs = require("fs");
@@ -39,7 +38,6 @@ app.listen(port, () => {
 
 /* Middleware and stuff */
 app.use(cors());
-app.use(bodyParser.json());
 app.use("/swagger", swaggerUi.serve, swaggerUi.setup(swaggerDoc));
 
 /* Helper functions */
@@ -128,7 +126,7 @@ app.post("/user/login", (req, res) => {
             { expiresIn: "30min" }
           );
           res.status(200);
-          res.send(token);
+          res.json({jwt: token});
         } else {
           res.status(401);
           res.send({
@@ -229,20 +227,23 @@ app.post("/user", (req, res) => {
 
 app.get("/products", (req, res) => {
   var query = "";
+  console.log(req.query);
   if (req.query.search != undefined) {
     query = ` WHERE (INSTR(Name, '${req.query.search}') > 0) OR (INSTR(Description, '${req.query.search}') > 0)`;
   } else if (req.query.category != undefined) {
     query = ` WHERE Category = ${req.query.category}`;
   }
+  const dbQuery = `SELECT * FROM Product${query}`;
+  console.log(dbQuery);
   dbConnection.query(
-    `SELECT * FROM Product${query}`,
+    dbQuery,
     (error, results, fields) => {
       if (error) {
         res.status(500);
         res.send(error);
       } else {
         res.status(200);
-        res.send(JSON.stringify(results));
+        res.json(results);
       }
     }
   );
@@ -258,7 +259,7 @@ app.get("/product/:productId", (req, res) => {
         res.send(error);
       } else {
         res.status(200);
-        res.send(JSON.stringify(results));
+        res.json(results);
       }
     }
   );
