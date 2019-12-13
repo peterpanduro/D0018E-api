@@ -251,7 +251,7 @@ app.get("/products", (req, res) => {
 app.get("/product/:productId", (req, res) => {
   const pId = req.params.productId;
   dbConnection.query(
-    `SELECT * FROM Product where ID = ${pId}`,
+    `SELECT * FROM vProductInfo where ID = ${pId}`,
     (error, results, fields) => {
       if (error) {
         res.status(500);
