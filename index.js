@@ -350,8 +350,24 @@ app.post("/product", (req, res) => {
   });
 });
 
-/* Categories */
+/* Comments */
+app.get("/comments/:productId", (req, res) => {
+  const pId = req.params.productId;
+  dbConnection.query(
+    `SELECT * FROM vCommentInfo where ID = ${pId}`,
+    (error, results, fields) => {
+      if (error) {
+        res.status(500);
+        res.send(error);
+      } else {
+        res.status(200);
+        res.json(results);
+      }
+    }
+  );
+});
 
+/* Categories */
 app.get('/categories', (req, res) => {
   dbConnection.query(`SELECT * FROM Category`, (dbError, dbResult, fields) => {
     res.status(200);
