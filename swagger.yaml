@@ -56,22 +56,6 @@ components:
         email:
           type: string
           format: email
-        verified:
-          type: boolean
-          default: true
-        created:
-          type: string
-          format: date
-        streetAddress:
-          type: string
-        postNr:
-          type: string
-        city:
-          type: string
-        country:
-          type: string
-        co:
-          type: string
     product:
       type: object
       properties:
