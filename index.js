@@ -98,6 +98,19 @@ function getUser(id, callback) {
   );
 }
 
+function verifyParam(res, param, errorMsg) {
+  if (!param) {
+      res.status(400);
+      res.send({
+        errorCode: 400,
+        error: "BAD REQUEST",
+        description: errorMsg
+      });
+      return false;
+    }
+    return true;
+}
+
 /* API endpoints */
 
 /* User */
@@ -157,33 +170,9 @@ app.get("/user", (req, res) => {
 });
 
 app.post("/user", (req, res) => {
-  if (!req.body.name) {
-    res.status(400);
-    res.send({
-      errorCode: 400,
-      error: "BAD REQUEST",
-      description: "No name provided"
-    });
-    return;
-  }
-  if (!req.body.email) {
-    res.status(400);
-    res.send({
-      errorCode: 400,
-      error: "BAD REQUEST",
-      description: "No email provided"
-    });
-    return;
-  }
-  if (!req.body.password) {
-    res.status(400);
-    res.send({
-      errorCode: 400,
-      error: "BAD REQUEST",
-      description: "No password provided"
-    });
-    return;
-  }
+  if (!verifyParam(res, req.body.name, "No name provided")) return;
+  if (!verifyParam(res, req.body.email, "No email provided")) return;
+  if (!verifyParam(res, req.body.password, "No password provided")) return;
   dbConnection.query(
     `SELECT * FROM User WHERE Email = '${req.body.email}'`,
     (dbError, dbResults, fields) => {
@@ -269,51 +258,12 @@ app.get("/product/:productId", (req, res) => {
 });
 
 app.post("/product", (req, res) => {
-  if (!req.body.name) {
-    res.status(400);
-    res.send({
-      errorCode: 400,
-      error: "BAD REQUEST",
-      description: "Name not provided"
-    });
-    return;
-  }
-  if (!req.body.price) {
-    res.status(400);
-    res.send({
-      errorCode: 400,
-      error: "BAD REQUEST",
-      description: "Price not provided"
-    });
-    return;
-  }
-  if (!req.body.stock) {
-    res.status(400);
-    res.send({
-      errorCode: 400,
-      error: "BAD REQUEST",
-      description: "Stock not provided"
-    });
-    return;
-  }
-  if (!req.body.category) {
-    res.status(400);
-    res.send({
-      errorCode: 400,
-      error: "BAD REQUEST",
-      description: "Category not provided"
-    });
-    return;
-  }
-  if (!req.body.description) {
-    res.status(400);
-    res.send({
-      errorCode: 400,
-      error: "BAD REQUEST",
-      description: "Description not provided"
-    });
-    return;
-  }
+  if (!verifyParam(res, req.body.name, "No name provided")) return;
+  if (!verifyParam(res, req.body.price, "No name price")) return;
+  if (!verifyParam(res, req.body.stock, "No stock provided")) return;
+  if (!verifyParam(res, req.body.category, "No category provided")) return;
+  if (!verifyParam(res, req.body.description, "No description provided")) return;
+
   verifyToken(req.headers.jwt, (status, response) => {
     if (status != 200) {
       res.status(status);
@@ -354,7 +304,7 @@ app.post("/product", (req, res) => {
 app.get("/comments/:productId", (req, res) => {
   const pId = req.params.productId;
   dbConnection.query(
-    `SELECT * FROM vCommentInfo where ID = ${pId}`,
+    `SELECT * FROM vCommentInfo where ProductID = ${pId}`,
     (error, results, fields) => {
       if (error) {
         res.status(500);
