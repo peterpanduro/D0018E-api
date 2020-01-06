@@ -215,6 +215,31 @@ app.post("/user", (req, res) => {
   );
 });
 
+app.patch("/user", (req, res) => {
+  verifyToken(req.headers.jwt, (status, response) => {
+    if (status != 200) {
+      res.status(status);
+      res.send(response);
+    }
+
+    var iterationStatement = "";
+    for (let key in req.body) {
+      iterationStatement += `${key} = '${req.body[key]}', `
+    }
+    if (iterationStatement.length > 1) {iterationStatement = iterationStatement.slice(0, -2);}
+    const dbQuery = `UPDATE User SET ${iterationStatement} WHERE ID = '${response.id}';`;
+    dbConnection.query(dbQuery, (error, results, fields) => {
+      if (error) {
+        res.status(500);
+        res.send(error);
+      } else {
+        res.status(200);
+        res.json(results);
+      }
+    })
+  });
+});
+
 /* Products */
 
 app.get("/products", (req, res) => {
