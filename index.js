@@ -173,10 +173,13 @@ app.post("/user", (req, res) => {
   if (!verifyParam(res, req.body.name, "No name provided")) return;
   if (!verifyParam(res, req.body.email, "No email provided")) return;
   if (!verifyParam(res, req.body.password, "No password provided")) return;
+  if (!verifyParam(res, req.body.emailToken, "No email token provided")) return;
+
   dbConnection.query(
     `SELECT * FROM User WHERE Email = '${req.body.email}'`,
     (dbError, dbResults, fields) => {
       if (dbError) {
+        console.log(dbError);
         res.status(500);
         res.send({
           errorCode: 500,
@@ -194,9 +197,10 @@ app.post("/user", (req, res) => {
         } else {
           const hashed = bcrypt.hashSync(req.body.password, 10);
           dbConnection.query(
-            `INSERT INTO User (Name, Email, Password) VALUES ('${req.body.name}', '${req.body.email}', '${hashed}')`,
+            `INSERT INTO User (Name, Email, Password, Token) VALUES ('${req.body.name}', '${req.body.email}', '${hashed}', '${req.body.emailToken}')`,
             (dbError2, dbResults2, fields2) => {
               if (dbError2) {
+                console.log(dbError2);
                 res.status(500);
                 res.send({
                   errorCode: 500,
@@ -347,6 +351,40 @@ app.get('/categories', (req, res) => {
   dbConnection.query(`SELECT * FROM Category`, (dbError, dbResult, fields) => {
     res.status(200);
     res.json(dbResult);
+  })
+})
+
+app.post('/category', (req, res) => {
+  if (!verifyParam(res, req.body.name, "No name provided")) return;
+  if (!verifyParam(res, req.body.description, "No description provided")) return;
+
+  verifyToken(req.headers.jwt, (status, response) => {
+    if (status !== 200) {
+      res.status(status);
+      res.send(response);
+    } else {
+      getUser(response.id, (status, user) => {
+        if (user.Privilege >= 1) {
+          const dbQuery = `INSERT INTO Category (Name, Description) VALUES ('${req.body.name}', '${req.body.description}');`;
+          dbConnection.query(dbQuery, (dbError, dbResult, fields) => {
+            if (dbError) {
+              res.status(500);
+              res.send(error);
+            } else {
+              res.status(201);
+              res.send(dbResult);
+            }
+          })
+        } else {
+          res.status(403);
+          res.send({
+            errorCode: 403,
+            error: "FORBIDDEN",
+            description: "User not allwed to do that"
+          });
+        }
+      })
+    }
   })
 })
 
