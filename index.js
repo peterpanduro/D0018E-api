@@ -111,6 +111,16 @@ function verifyParam(res, param, errorMsg) {
     return true;
 }
 
+function query(query, res, successStatus = 200) {
+  dbConnection.query(query, (error, result, fields) => {
+    const status = error ? 500 : successStatus;
+    const send = error ? error : result;
+    res.status(status);
+    res.send(send);
+    return;
+  });
+}
+
 /* API endpoints */
 
 /* User */
@@ -224,6 +234,7 @@ app.patch("/user", (req, res) => {
     if (status != 200) {
       res.status(status);
       res.send(response);
+      return;
     }
 
     var iterationStatement = "";
@@ -236,9 +247,11 @@ app.patch("/user", (req, res) => {
       if (error) {
         res.status(500);
         res.send(error);
+        return;
       } else {
         res.status(200);
         res.json(results);
+        return;
       }
     })
   });
@@ -329,6 +342,52 @@ app.post("/product", (req, res) => {
   });
 });
 
+app.put('/product/:id', (req, res) => {
+  if (!verifyParam(res, req.body.name, "No name provided")) return;
+  if (!verifyParam(res, req.body.price, "No name price")) return;
+  if (!verifyParam(res, req.body.stock, "No stock provided")) return;
+  if (!verifyParam(res, req.body.category, "No category provided")) return;
+  if (!verifyParam(res, req.body.description, "No description provided")) return;
+  if (!verifyParam(res, req.body.image, "No image url provided")) return;
+  if (!verifyParam(res, req.body.imageDescription, "No image description provided")) return;
+
+
+  verifyToken(req.headers.jwt, (status, response) => {
+    if (status != 200) {
+      res.status(status);
+      res.send(response);
+    } else {
+      const user = getUser(response.id, (status, user) => {
+        if (user.Privilege >= 1) {
+          dbConnection.query(
+            `INSERT INTO Product (Name, Price, Stock, Category, Description) VALUES ('${req.body.name}','${req.body.price}','${req.body.stock}','${req.body.category}','${req.body.description}')`,
+            (dbError, dbResult, fields) => {
+              if (dbError) {
+                res.status(500);
+                res.send({
+                  errorCode: 500,
+                  error: "UNKNOWN SERVER ERROR",
+                  description: dbError
+                });
+              } else {
+                res.status(201);
+                res.send("Product created");
+              }
+            }
+          );
+        } else {
+          res.status(403);
+          res.send({
+            errorCode: 403,
+            error: "FORBIDDEN",
+            description: "User not allwed to do that"
+          });
+        }
+      });
+    }
+  });
+})
+
 /* Comments */
 app.get("/comments/:productId", (req, res) => {
   const pId = req.params.productId;
@@ -346,8 +405,70 @@ app.get("/comments/:productId", (req, res) => {
   );
 });
 
+app.post('/comments/:productId', (req, res) => {
+  if (!verifyParam(res, req.body.opinion, "No opinion provided")) return;
+  if (!verifyParam(res, req.body.rating, "No rating provided")) return;
+  if (!Number.isInteger(req.body.rating)) {
+      res.status(400);
+      res.send({
+        errorCode: 400,
+        error: "BAD REQUEST",
+        description: "Rating is not an integer"
+      });
+  }
+  if (req.body.rating < 0 || req.body.rating > 5) {
+    res.status(400);
+      res.send({
+        errorCode: 400,
+        error: "BAD REQUEST",
+        description: "Rating must be between 0 and 5"
+      });
+  }
+
+  verifyToken(req.headers.jwt, (status, response) => {
+    if (status !== 200) {
+      res.status(status);
+      res.send(response);
+      return;
+    } else {
+      const pId = req.params.productId;
+      const dbQuery = `INSERT INTO Review (UserID, ProductID, Opinion, Rating) VALUES ('${response.id}', '${pId}', '${req.body.opinion}', '${req.body.rating}');`;
+      query(dbQuery, res);
+    }
+  })
+})
+
+app.delete('/comments/:commentId', (req, res) => {
+  console.log("Delete mf");
+  verifyToken(req.headers.jwt, (status, response) => {
+    if (status !== 200) {
+      res.status(status);
+      res.send(response);
+      return;
+    } else {
+      getUser(response.id, (status, user) => {
+        if (user.Privilege >= 1) {
+          const cId = req.params.commentId;
+          const dbQuery = `DELETE FROM Review WHERE ID = '${cId}'`;
+          console.log(dbQuery);
+          query(dbQuery, res);
+          return;
+        } else {
+          res.status(403);
+          res.send({
+            errorCode: 403,
+            error: "FORBIDDEN",
+            description: "User not allwed to do that"
+          });
+        }
+      })
+    }
+  })
+})
+
 /* Categories */
 app.get('/categories', (req, res) => {
+  console.log("LOG?!")
   dbConnection.query(`SELECT * FROM Category`, (dbError, dbResult, fields) => {
     res.status(200);
     res.json(dbResult);
@@ -388,5 +509,45 @@ app.post('/category', (req, res) => {
   })
 })
 
-/* Cart */
+app.put('/category', (req, res) => {
+  if (!verifyParam(res, req.body.id, "No id provided")) return;
+  if (!verifyParam(res, req.body.name, "No name provided")) return;
+  if (!verifyParam(res, req.body.description, "No description provided")) return;
+
+  verifyToken(req.headers.jwt, (status, response) => {
+    if (status !== 200) {
+      res.status(status);
+      res.send(response);
+      return;
+    } else {
+      getUser(response.id, (status, user) => {
+        if (user.Privilege >= 1) {
+          const dbQuery = `UPDATE Category SET Name = '${req.body.name}', Description = '${req.body.description}' WHERE ID = '${req.body.id}';`;
+          dbConnection.query(dbQuery, (dbError, dbResult, fields) => {
+            if (dbError) {
+              res.status(500);
+              res.send(error);
+              return;
+            } else {
+              res.status(201);
+              res.send(dbResult);
+              return;
+            }
+          })
+        } else {
+          res.status(403);
+          res.send({
+            errorCode: 403,
+            error: "FORBIDDEN",
+            description: "User not allwed to do that"
+          });
+          return;
+        }
+      })
+    }
+  })
+})
+
 /* Order */
+
+
