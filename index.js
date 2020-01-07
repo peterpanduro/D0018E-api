@@ -189,7 +189,6 @@ app.post("/user", (req, res) => {
     `SELECT * FROM User WHERE Email = '${req.body.email}'`,
     (dbError, dbResults, fields) => {
       if (dbError) {
-        console.log(dbError);
         res.status(500);
         res.send({
           errorCode: 500,
@@ -206,23 +205,8 @@ app.post("/user", (req, res) => {
           });
         } else {
           const hashed = bcrypt.hashSync(req.body.password, 10);
-          dbConnection.query(
-            `INSERT INTO User (Name, Email, Password, Token) VALUES ('${req.body.name}', '${req.body.email}', '${hashed}', '${req.body.emailToken}')`,
-            (dbError2, dbResults2, fields2) => {
-              if (dbError2) {
-                console.log(dbError2);
-                res.status(500);
-                res.send({
-                  errorCode: 500,
-                  error: "UNKNOWN SERVER ERROR",
-                  description: dbError2
-                });
-              } else {
-                res.status(201);
-                res.send({ INFO: "User is created" });
-              }
-            }
-          );
+          dbQuery = `INSERT INTO User (Name, Email, Password, Token) VALUES ('${req.body.name}', '${req.body.email}', '${hashed}', '${req.body.emailToken}')`;
+          query(dbQuery, res);
         }
       }
     }
@@ -243,17 +227,7 @@ app.patch("/user", (req, res) => {
     }
     if (iterationStatement.length > 1) {iterationStatement = iterationStatement.slice(0, -2);}
     const dbQuery = `UPDATE User SET ${iterationStatement} WHERE ID = '${response.id}';`;
-    dbConnection.query(dbQuery, (error, results, fields) => {
-      if (error) {
-        res.status(500);
-        res.send(error);
-        return;
-      } else {
-        res.status(200);
-        res.json(results);
-        return;
-      }
-    })
+    query(dbQuery, res);
   });
 });
 
@@ -269,34 +243,14 @@ app.get("/products", (req, res) => {
     query = ` WHERE Category = ${req.query.category}`;
   }
   const dbQuery = `SELECT * FROM vProductInfo${query}`;
-  dbConnection.query(
-    dbQuery,
-    (error, results, fields) => {
-      if (error) {
-        res.status(500);
-        res.send(error);
-      } else {
-        res.status(200);
-        res.json(results);
-      }
-    }
-  );
+  query(dbQuery, res);  
 });
 
 app.get("/product/:productId", (req, res) => {
   const pId = req.params.productId;
-  dbConnection.query(
-    `SELECT * FROM vProductInfo where ID = ${pId}`,
-    (error, results, fields) => {
-      if (error) {
-        res.status(500);
-        res.send(error);
-      } else {
-        res.status(200);
-        res.json(results);
-      }
-    }
-  );
+  dbQuery = `SELECT * FROM vProductInfo where ID = ${pId}`;
+  query(dbQuery, res);
+  return;
 });
 
 app.post("/product", (req, res) => {
@@ -311,24 +265,11 @@ app.post("/product", (req, res) => {
       res.status(status);
       res.send(response);
     } else {
-      const user = getUser(response.id, (status, user) => {
+      getUser(response.id, (status, user) => {
         if (user.Privilege >= 1) {
-          dbConnection.query(
-            `INSERT INTO Product (Name, Price, Stock, Category, Description) VALUES ('${req.body.name}','${req.body.price}','${req.body.stock}','${req.body.category}','${req.body.description}')`,
-            (dbError, dbResult, fields) => {
-              if (dbError) {
-                res.status(500);
-                res.send({
-                  errorCode: 500,
-                  error: "UNKNOWN SERVER ERROR",
-                  description: dbError
-                });
-              } else {
-                res.status(201);
-                res.send("Product created");
-              }
-            }
-          );
+          const dbQuery = `INSERT INTO Product (Name, Price, Stock, Category, Description) VALUES ('${req.body.name}','${req.body.price}','${req.body.stock}','${req.body.category}','${req.body.description}')`;
+          query(dbQuery, res);
+          return;
         } else {
           res.status(403);
           res.send({
@@ -351,30 +292,16 @@ app.put('/product/:id', (req, res) => {
   if (!verifyParam(res, req.body.image, "No image url provided")) return;
   if (!verifyParam(res, req.body.imageDescription, "No image description provided")) return;
 
-
   verifyToken(req.headers.jwt, (status, response) => {
     if (status != 200) {
       res.status(status);
       res.send(response);
     } else {
-      const user = getUser(response.id, (status, user) => {
+      getUser(response.id, (status, user) => {
         if (user.Privilege >= 1) {
-          dbConnection.query(
-            `INSERT INTO Product (Name, Price, Stock, Category, Description) VALUES ('${req.body.name}','${req.body.price}','${req.body.stock}','${req.body.category}','${req.body.description}')`,
-            (dbError, dbResult, fields) => {
-              if (dbError) {
-                res.status(500);
-                res.send({
-                  errorCode: 500,
-                  error: "UNKNOWN SERVER ERROR",
-                  description: dbError
-                });
-              } else {
-                res.status(201);
-                res.send("Product created");
-              }
-            }
-          );
+          dbQuery = `INSERT INTO Product (Name, Price, Stock, Category, Description) VALUES ('${req.body.name}','${req.body.price}','${req.body.stock}','${req.body.category}','${req.body.description}')`;
+          query(dbQuery, res);
+          return;
         } else {
           res.status(403);
           res.send({
@@ -391,18 +318,8 @@ app.put('/product/:id', (req, res) => {
 /* Comments */
 app.get("/comments/:productId", (req, res) => {
   const pId = req.params.productId;
-  dbConnection.query(
-    `SELECT * FROM vCommentInfo where ProductID = ${pId}`,
-    (error, results, fields) => {
-      if (error) {
-        res.status(500);
-        res.send(error);
-      } else {
-        res.status(200);
-        res.json(results);
-      }
-    }
-  );
+  dbQuery = `SELECT * FROM vCommentInfo where ProductID = ${pId}`;
+  query(dbQuery, res);
 });
 
 app.post('/comments/:productId', (req, res) => {
@@ -439,7 +356,6 @@ app.post('/comments/:productId', (req, res) => {
 })
 
 app.delete('/comments/:commentId', (req, res) => {
-  console.log("Delete mf");
   verifyToken(req.headers.jwt, (status, response) => {
     if (status !== 200) {
       res.status(status);
@@ -450,7 +366,6 @@ app.delete('/comments/:commentId', (req, res) => {
         if (user.Privilege >= 1) {
           const cId = req.params.commentId;
           const dbQuery = `DELETE FROM Review WHERE ID = '${cId}'`;
-          console.log(dbQuery);
           query(dbQuery, res);
           return;
         } else {
@@ -468,12 +383,9 @@ app.delete('/comments/:commentId', (req, res) => {
 
 /* Categories */
 app.get('/categories', (req, res) => {
-  console.log("LOG?!")
-  dbConnection.query(`SELECT * FROM Category`, (dbError, dbResult, fields) => {
-    res.status(200);
-    res.json(dbResult);
-  })
-})
+  dbQuery = `SELECT * FROM Category`;
+  query(query, res);
+});
 
 app.post('/category', (req, res) => {
   if (!verifyParam(res, req.body.name, "No name provided")) return;
@@ -487,15 +399,7 @@ app.post('/category', (req, res) => {
       getUser(response.id, (status, user) => {
         if (user.Privilege >= 1) {
           const dbQuery = `INSERT INTO Category (Name, Description) VALUES ('${req.body.name}', '${req.body.description}');`;
-          dbConnection.query(dbQuery, (dbError, dbResult, fields) => {
-            if (dbError) {
-              res.status(500);
-              res.send(error);
-            } else {
-              res.status(201);
-              res.send(dbResult);
-            }
-          })
+          query(dbQuery, res);
         } else {
           res.status(403);
           res.send({
@@ -523,17 +427,7 @@ app.put('/category', (req, res) => {
       getUser(response.id, (status, user) => {
         if (user.Privilege >= 1) {
           const dbQuery = `UPDATE Category SET Name = '${req.body.name}', Description = '${req.body.description}' WHERE ID = '${req.body.id}';`;
-          dbConnection.query(dbQuery, (dbError, dbResult, fields) => {
-            if (dbError) {
-              res.status(500);
-              res.send(error);
-              return;
-            } else {
-              res.status(201);
-              res.send(dbResult);
-              return;
-            }
-          })
+          query(dbQuery, res);
         } else {
           res.status(403);
           res.send({
