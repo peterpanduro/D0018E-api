@@ -683,43 +683,29 @@ app.post('/orders', async (req, res) => {
       });
     }
   })
+})
 
-  // function isAdmin(jwt) {
-  //   const promise = new Promise(async(resolve, reject) => {
-  //     try {
-  //       const token = await promiseVerifyToken(jwt);
-  //       const user = await promiseGetUser(token.id);
-  //       const admin = user.Privilege > 0 ? true : false;
-  //       resolve(admin);
-  //     } catch (error) {
-  //       throw error;
-  //     }
-  //   })
-  //   return Promise.all([promise]);
-  // }
-
-  app.get("/test", (req, res) => {
-    send(res, "OK");
-  })
-
-  app.patch("/orders/:orderId", async (req, res) => {
-    if (!verifyParam(res, req.body.orderStatus, "No orderStatus provided")) return;
-    if (!isAdmin(req.headers.jwt)) {
+app.patch("/orders/:orderId", async (req, res) => {
+  if (!verifyParam(res, req.body.orderStatus, "No orderStatus provided")) return;
+  
+  try {
+    const token = await promiseVerifyToken(req.headers.jwt);
+    const user = promiseGetUser(token.id);
+    if (user.Privilege === 0) { 
       res.status(403);
       res.send({
         errorCode: 403,
-        error: "UNAUTHORIZED",
-        description: "User not admin"
+        error: "FORBIDDEN",
+        description: "User not allwed to do that"
       });
       return;
     }
     const cId = req.params.orderId;
-    const dbQuery = `UPDATE Orders SET OrderStatus = '${req.body.orderStatus}' WHERE ID = '${cId}'`;
-    try {
-      const result = await promiseQuery(dbQuery);
-      send(res, result);
-    } catch (error) {
-      send(res, error, error.errorCode || 500);
-    }
-  })
-});
+    const dbQuery = `UPDATE Orders SET Status = '${req.body.orderStatus}' WHERE ID = '${cId}'`;
+    const result = await promiseQuery(dbQuery);
+    send(res, result);
+  } catch (error) {
+     console.error(error);
+     send(res, error, error.errorCode || 500); 
+  }
+})
