@@ -73,6 +73,28 @@ function verifyToken(token, callback) {
   }
 }
 
+function promiseVerifyToken(token) {
+  return new Promise(async (resolve, reject) => {
+    if (!token) {
+      reject({
+        errorCode: 401,
+        error: "UNAUTHORIZED",
+        description: "No JWT provided"
+      });
+    }
+    try {
+      var decoded = jwt.verify(token, process.env.JWT_SECRET);
+      resolve(decoded);
+    } catch(err) {
+      reject({
+        errorCode: 401,
+        error: "UNAUTHORIZED",
+        description: "JWT invalid"
+      });
+    }
+  })
+}
+
 function getUser(id, callback) {
   dbConnection.query(
     `SELECT * FROM User WHERE ID = ${id}`,
@@ -98,6 +120,30 @@ function getUser(id, callback) {
   );
 }
 
+async function promiseGetUser(id) {
+  return new Promise(async (resolve, reject) => {
+    const dbQuery = `SELECT * FROM User WHERE ID = ${id};`;
+    try {
+      const response = await promiseQuery(dbQuery);
+      if (response.length == 1) {
+        resolve(response[0]);
+      } else {
+        reject({
+          errorCode: 400,
+          error: "BAD REQUEST",
+          description: "User not found"
+        });
+      }
+    } catch (error) {
+      reject({
+        errorCode: 500,
+        error: "UNKNOWN SERVER ERROR",
+        description: error
+      });
+    }
+  });
+}
+
 function verifyParam(res, param, errorMsg) {
   if (!param) {
       res.status(400);
@@ -111,14 +157,64 @@ function verifyParam(res, param, errorMsg) {
     return true;
 }
 
-function query(query, res, successStatus = 200) {
+function query(query, res, successStatus = 200, completion = undefined) {
   dbConnection.query(query, (error, result, fields) => {
     const status = error ? 500 : successStatus;
     const send = error ? error : result;
-    res.status(status);
-    res.send(send);
+    if (res) {
+      res.status(status);
+      res.json(send);
+    }
+    if (completion) {
+      completion(status, send);
+    }
     return;
   });
+}
+
+function promiseQuery(query) {
+  return new Promise((resolve, reject) => {
+    dbConnection.query(query, (error, result, fields) => {
+      if (error) {
+        reject(error);
+      }
+      const response = error ? error : result;
+      resolve(response);
+    });
+  });
+}
+
+function checkStatus(status, response, res) {
+  if (status !== 200) {
+    res.status(status);
+    res.send(response);
+    return false;
+  }
+  return true;
+}
+
+function getStatusString(statusId) {
+  switch (statusId) {
+    case 1:
+      return "Pending";
+    case 2:
+      return "Confirmed";
+    case 3:
+      return "Shipping";
+    case 4:
+      return "Complete";
+    case 5:
+      return "Other";
+    case 6:
+      return "Cancelled";
+    default:
+      return "Unknown";
+  }
+}
+
+function send(res, result, status = 200) {
+  res.status(status);
+  res.json(result);
 }
 
 /* API endpoints */
@@ -126,8 +222,8 @@ function query(query, res, successStatus = 200) {
 /* User */
 
 app.post("/user/login", (req, res) => {
-  const query = `SELECT * FROM User WHERE Email = '${req.headers.email}'`;
-  dbConnection.query(query, (dbError, dbResult, fields) => {
+  const dbQuery = `SELECT * FROM User WHERE Email = '${req.headers.email}'`;
+  dbConnection.query(dbQuery, (dbError, dbResult, fields) => {
     if (dbError) {
       res.status(500);
       res.send({
@@ -168,10 +264,7 @@ app.post("/user/login", (req, res) => {
 
 app.get("/user", (req, res) => {
   verifyToken(req.headers.jwt, (status, response) => {
-    if (status != 200) {
-      res.status(status);
-      res.send(response);
-    }
+    if (!checkStatus(status, response, res)) return;
     getUser(response.id, (status, response) => {
       res.status(status);
       res.send(response);
@@ -205,7 +298,7 @@ app.post("/user", (req, res) => {
           });
         } else {
           const hashed = bcrypt.hashSync(req.body.password, 10);
-          dbQuery = `INSERT INTO User (Name, Email, Password, Token) VALUES ('${req.body.name}', '${req.body.email}', '${hashed}', '${req.body.emailToken}')`;
+          const dbQuery = `INSERT INTO User (Name, Email, Password, Token) VALUES ('${req.body.name}', '${req.body.email}', '${hashed}', '${req.body.emailToken}')`;
           query(dbQuery, res);
         }
       }
@@ -215,12 +308,7 @@ app.post("/user", (req, res) => {
 
 app.patch("/user", (req, res) => {
   verifyToken(req.headers.jwt, (status, response) => {
-    if (status != 200) {
-      res.status(status);
-      res.send(response);
-      return;
-    }
-
+    if (!checkStatus(status, response, res)) return;
     var iterationStatement = "";
     for (let key in req.body) {
       iterationStatement += `${key} = '${req.body[key]}', `
@@ -234,21 +322,19 @@ app.patch("/user", (req, res) => {
 /* Products */
 
 app.get("/products", (req, res) => {
-  var url_params = url.parse(req.url, true);
-  var q = url_params.query;
-  var query = "";
+  var q = "";
   if (req.query.search != undefined) {
-    query = ` WHERE (INSTR(Name, '${req.query.search}') > 0) OR (INSTR(Description, '${req.query.search}') > 0)`;
+    q = ` WHERE (INSTR(Name, '${req.query.search}') > 0) OR (INSTR(Description, '${req.query.search}') > 0)`;
   } else if (req.query.category != undefined) {
-    query = ` WHERE Category = ${req.query.category}`;
+    q = ` WHERE Category = ${req.query.category}`;
   }
-  const dbQuery = `SELECT * FROM vProductInfo${query}`;
+  const dbQuery = `SELECT * FROM vProductInfo${q}`;
   query(dbQuery, res);  
 });
 
 app.get("/product/:productId", (req, res) => {
   const pId = req.params.productId;
-  dbQuery = `SELECT * FROM vProductInfo where ID = ${pId}`;
+  const dbQuery = `SELECT * FROM vProductInfo where ID = ${pId}`;
   query(dbQuery, res);
   return;
 });
@@ -261,25 +347,21 @@ app.post("/product", (req, res) => {
   if (!verifyParam(res, req.body.description, "No description provided")) return;
 
   verifyToken(req.headers.jwt, (status, response) => {
-    if (status != 200) {
-      res.status(status);
-      res.send(response);
-    } else {
+    if (!checkStatus(status, response, res)) return;
       getUser(response.id, (status, user) => {
-        if (user.Privilege >= 1) {
-          const dbQuery = `INSERT INTO Product (Name, Price, Stock, Category, Description) VALUES ('${req.body.name}','${req.body.price}','${req.body.stock}','${req.body.category}','${req.body.description}')`;
-          query(dbQuery, res);
-          return;
-        } else {
-          res.status(403);
-          res.send({
-            errorCode: 403,
-            error: "FORBIDDEN",
-            description: "User not allwed to do that"
-          });
-        }
-      });
-    }
+      if (user.Privilege >= 1) {
+        const dbQuery = `INSERT INTO Product (Name, Price, Stock, Category, Description) VALUES ('${req.body.name}','${req.body.price}','${req.body.stock}','${req.body.category}','${req.body.description}')`;
+        query(dbQuery, res);
+        return;
+      } else {
+        res.status(403);
+        res.send({
+          errorCode: 403,
+          error: "FORBIDDEN",
+          description: "User not allwed to do that"
+        });
+      }
+    });
   });
 });
 
@@ -293,32 +375,28 @@ app.put('/product/:id', (req, res) => {
   if (!verifyParam(res, req.body.imageDescription, "No image description provided")) return;
 
   verifyToken(req.headers.jwt, (status, response) => {
-    if (status != 200) {
-      res.status(status);
-      res.send(response);
-    } else {
-      getUser(response.id, (status, user) => {
-        if (user.Privilege >= 1) {
-          dbQuery = `INSERT INTO Product (Name, Price, Stock, Category, Description) VALUES ('${req.body.name}','${req.body.price}','${req.body.stock}','${req.body.category}','${req.body.description}')`;
-          query(dbQuery, res);
-          return;
-        } else {
-          res.status(403);
-          res.send({
-            errorCode: 403,
-            error: "FORBIDDEN",
-            description: "User not allwed to do that"
-          });
-        }
-      });
-    }
+    if (!checkStatus(status, response, res)) return;
+    getUser(response.id, (status, user) => {
+      if (user.Privilege >= 1) {
+        const dbQuery = `INSERT INTO Product (Name, Price, Stock, Category, Description) VALUES ('${req.body.name}','${req.body.price}','${req.body.stock}','${req.body.category}','${req.body.description}')`;
+        query(dbQuery, res);
+        return;
+      } else {
+        res.status(403);
+        res.send({
+          errorCode: 403,
+          error: "FORBIDDEN",
+          description: "User not allwed to do that"
+        });
+      }
+    });
   });
 })
 
 /* Comments */
 app.get("/comments/:productId", (req, res) => {
   const pId = req.params.productId;
-  dbQuery = `SELECT * FROM vCommentInfo where ProductID = ${pId}`;
+  const dbQuery = `SELECT * FROM vCommentInfo where ProductID = ${pId}`;
   query(dbQuery, res);
 });
 
@@ -343,48 +421,45 @@ app.post('/comments/:productId', (req, res) => {
   }
 
   verifyToken(req.headers.jwt, (status, response) => {
-    if (status !== 200) {
-      res.status(status);
-      res.send(response);
-      return;
-    } else {
-      const pId = req.params.productId;
+    if (!checkStatus(status, response, res)) return;
+    const pId = req.params.productId;
+    if (Number.isInteger(parseInt(pId))) {
       const dbQuery = `INSERT INTO Review (UserID, ProductID, Opinion, Rating) VALUES ('${response.id}', '${pId}', '${req.body.opinion}', '${req.body.rating}');`;
       query(dbQuery, res);
+      return;
+    } else {
+      res.status(400);
+      res.send("ERROR WTF IS WRONG WITH U?");
+      return;
     }
   })
 })
 
 app.delete('/comments/:commentId', (req, res) => {
   verifyToken(req.headers.jwt, (status, response) => {
-    if (status !== 200) {
-      res.status(status);
-      res.send(response);
-      return;
-    } else {
-      getUser(response.id, (status, user) => {
-        if (user.Privilege >= 1) {
-          const cId = req.params.commentId;
-          const dbQuery = `DELETE FROM Review WHERE ID = '${cId}'`;
-          query(dbQuery, res);
-          return;
-        } else {
-          res.status(403);
-          res.send({
-            errorCode: 403,
-            error: "FORBIDDEN",
-            description: "User not allwed to do that"
-          });
-        }
-      })
-    }
+    if (!checkStatus(status, response, res)) return;
+    getUser(response.id, (status, user) => {
+      if (user.Privilege >= 1) {
+        const cId = req.params.commentId;
+        const dbQuery = `DELETE FROM Review WHERE ID = '${cId}'`;
+        query(dbQuery, res);
+        return;
+      } else {
+        res.status(403);
+        res.send({
+          errorCode: 403,
+          error: "FORBIDDEN",
+          description: "User not allwed to do that"
+        });
+      }
+    })
   })
 })
 
 /* Categories */
 app.get('/categories', (req, res) => {
-  dbQuery = `SELECT * FROM Category`;
-  query(query, res);
+  const dbQuery = `SELECT * FROM Category`;
+  query(dbQuery, res);
 });
 
 app.post('/category', (req, res) => {
@@ -392,24 +467,20 @@ app.post('/category', (req, res) => {
   if (!verifyParam(res, req.body.description, "No description provided")) return;
 
   verifyToken(req.headers.jwt, (status, response) => {
-    if (status !== 200) {
-      res.status(status);
-      res.send(response);
-    } else {
-      getUser(response.id, (status, user) => {
-        if (user.Privilege >= 1) {
-          const dbQuery = `INSERT INTO Category (Name, Description) VALUES ('${req.body.name}', '${req.body.description}');`;
-          query(dbQuery, res);
-        } else {
-          res.status(403);
-          res.send({
-            errorCode: 403,
-            error: "FORBIDDEN",
-            description: "User not allwed to do that"
-          });
-        }
-      })
-    }
+    if (!checkStatus(status, response, res)) return;
+    getUser(response.id, (status, user) => {
+      if (user.Privilege >= 1) {
+        const dbQuery = `INSERT INTO Category (Name, Description) VALUES ('${req.body.name}', '${req.body.description}');`;
+        query(dbQuery, res);
+      } else {
+        res.status(403);
+        res.send({
+          errorCode: 403,
+          error: "FORBIDDEN",
+          description: "User not allwed to do that"
+        });
+      }
+    })
   })
 })
 
@@ -419,29 +490,139 @@ app.put('/category', (req, res) => {
   if (!verifyParam(res, req.body.description, "No description provided")) return;
 
   verifyToken(req.headers.jwt, (status, response) => {
-    if (status !== 200) {
-      res.status(status);
-      res.send(response);
-      return;
-    } else {
-      getUser(response.id, (status, user) => {
-        if (user.Privilege >= 1) {
-          const dbQuery = `UPDATE Category SET Name = '${req.body.name}', Description = '${req.body.description}' WHERE ID = '${req.body.id}';`;
-          query(dbQuery, res);
-        } else {
-          res.status(403);
-          res.send({
-            errorCode: 403,
-            error: "FORBIDDEN",
-            description: "User not allwed to do that"
-          });
-          return;
-        }
-      })
-    }
+    if (!checkStatus(status, response, res)) return;
+    getUser(response.id, (status, user) => {
+      if (user.Privilege >= 1) {
+        const dbQuery = `UPDATE Category SET Name = '${req.body.name}', Description = '${req.body.description}' WHERE ID = '${req.body.id}';`;
+        query(dbQuery, res);
+      } else {
+        res.status(403);
+        res.send({
+          errorCode: 403,
+          error: "FORBIDDEN",
+          description: "User not allwed to do that"
+        });
+        return;
+      }
+    })
   })
 })
 
 /* Order */
 
+async function getOrderItems(orderId) {
+  return new Promise(async (resolve, reject) => {
+    try {
+      const dbQuery = `SELECT * FROM OrderDetails WHERE \`Order\` = '${orderId}';`;
+      const orderItems = await promiseQuery(dbQuery);
+      const returnItems = orderItems.map(item => {
+        return {product: item.ProductID, quantity: item.Quantity, unitPrice: item.UnitPrice}
+      });
+      resolve(returnItems);
+    } catch (error) {
+      reject(error);
+    }
+  })
+}
 
+app.get('/orders', async (req, res) => {
+  try {
+    const token = await promiseVerifyToken(req.headers.jwt);
+    const user = await promiseGetUser(token.id);
+    const dbQuery = `SELECT * FROM Orders WHERE UserID = '${user.ID}';`;
+    const orders = await promiseQuery(dbQuery);
+    const returnOrders = await Promise.all(orders.map(async order => {
+      const items = await getOrderItems(order.ID);
+      const status = getStatusString(order.Status);
+      return {order: {orderId: order.ID, status, orderDate: order.Date, shipped: order.ShippedDate, address: order.Address, items}};
+    }));
+    send(res, returnOrders);    
+  } catch (error) {
+    send(res, error, error.errorCode);
+  }
+});
+
+async function createAddress(name, address, zipCode) {
+  return new Promise(async (resolve, reject) => {
+    const dbQuery = `INSERT INTO Address (Name, ZipCode, Address) VALUES ('${name}', '${zipCode}', '${address}');`;
+    const response = await promiseQuery(dbQuery);
+    resolve(response);
+  });
+}
+
+async function getAddressId(name, address, zipCode) {
+  return new Promise(async (resolve, reject) => {
+    const dbQuery = `SELECT ID FROM Address WHERE Name = '${name}' AND Address = '${address}' AND ZipCode = '${zipCode}';`;
+    const response = await promiseQuery(dbQuery);
+    const retVaulue = response[0] ? response[0].ID : undefined;
+    resolve(retVaulue);
+  });  
+}
+
+async function getAddressIdOrCreate(name, address, zipCode) {
+  return new Promise(async (resolve, reject) => {
+    const addressId = await getAddressId(name, address, zipCode);
+    if (addressId) {
+      resolve(addressId);
+      return;
+    }
+    await createAddress(name, address, zipCode);
+    const addressId2 = await getAddressId(name, address, zipCode);
+    resolve(addressId2);
+  });
+}
+
+app.post('/orders', async (req, res) => {
+  if (!verifyParam(res, req.body.address, "No address provided")) return;
+  if (!verifyParam(res, req.body.zipCode, "No zipCode provided")) return;
+  if (!verifyParam(res, req.body.items, "No items provided")) return;
+  dbConnection.beginTransaction(async err => {
+    if (err) { throw err; }
+    try {
+      const token = await promiseVerifyToken(req.headers.jwt);
+      const user = await promiseGetUser(token.id);
+      try {
+          const addressId = await getAddressIdOrCreate(user.Name, req.body.address, req.body.zipCode);
+          // Create new order
+          const orderQuery = `INSERT INTO Orders (UserID, Status, Address) VALUES ('${user.ID}', 1, '${addressId}');`;
+          await promiseQuery(orderQuery);
+          const lastIdQuery = `SELECT LAST_INSERT_ID();`;
+          const lastIdResult = await promiseQuery(lastIdQuery);
+          const orderId = lastIdResult[0]['LAST_INSERT_ID()'];
+          // Create order details
+          await req.body.items.forEach(async item => {
+            try {
+              if (!item.product) {throw new Error("No product is specified for item");}
+              if (!item.quantity) {throw new Error("No quantity is specified for item");}
+              const productQuery = `SELECT * FROM vProductInfo where ID = ${item.product};`;
+              const productResult = await promiseQuery(productQuery);
+              const product = productResult[0];
+              var price = product.Price;
+              if (product.DiscountPrice < price && product.DiscountPrice > 0) {price = product.DiscountPrice};
+              const orderDetailQuery = `INSERT INTO OrderDetails (ProductID, Quantity, UnitPrice, \`Order\`) VALUES ('${item.product}', '${item.quantity}', '${price}', '${orderId}');`;
+              await promiseQuery(orderDetailQuery);
+              dbConnection.commit(error => {
+                if (error) {
+                  console.log({error, func: "1"});
+                  throw error;
+                }
+              })
+            } catch (error) {
+              console.log({error, func: "2"});
+              throw error;
+            }
+        });
+        // Commit
+        send(res, "SUCCESS");
+      } catch (error) {
+        console.log({error, func: "3"});
+        throw error;
+      }
+    } catch (error) {
+      dbConnection.rollback(() => {
+        console.log({error, func: "4"});
+        send(res, error, error.errorCode);
+      });
+    }
+  })
+});
