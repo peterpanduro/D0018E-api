@@ -7,7 +7,6 @@ const bcrypt = require("bcryptjs");
 const mysql = require("mysql");
 const app = express();
 const cors = require("cors");
-const url = require('url')
 const bodyParser = require('body-parser')
 /* Swagger stuff */
 const swaggerUi = require("swagger-ui-express");
@@ -145,7 +144,7 @@ async function promiseGetUser(id) {
 }
 
 function verifyParam(res, param, errorMsg) {
-  if (!param) {
+  if (param === undefined) {
       res.status(400);
       res.send({
         errorCode: 400,
@@ -155,6 +154,11 @@ function verifyParam(res, param, errorMsg) {
       return false;
     }
     return true;
+}
+
+function verifyIsInt(res, param, errorMsg) {
+  if (!Number.isInteger(parseInt(param))) {param = undefined};
+  return verifyParam(res, param, errorMsg);
 }
 
 function query(query, res, successStatus = 200, completion = undefined) {
@@ -328,7 +332,13 @@ app.get("/products", (req, res) => {
   } else if (req.query.category != undefined) {
     q = ` WHERE Category = ${req.query.category}`;
   }
-  const dbQuery = `SELECT * FROM vProductInfo${q}`;
+  if (q === "") {
+    q += " WHERE Archived = 0";
+  } else {
+    q += " AND Archived = 0";
+  }
+  const dbQuery = `SELECT * FROM vProductInfo${q};`;
+  console.log(dbQuery)
   query(dbQuery, res);  
 });
 
@@ -339,58 +349,113 @@ app.get("/product/:productId", (req, res) => {
   return;
 });
 
-app.post("/product", (req, res) => {
+app.post("/product", async (req, res) => {
   if (!verifyParam(res, req.body.name, "No name provided")) return;
-  if (!verifyParam(res, req.body.price, "No name price")) return;
-  if (!verifyParam(res, req.body.stock, "No stock provided")) return;
-  if (!verifyParam(res, req.body.category, "No category provided")) return;
-  if (!verifyParam(res, req.body.description, "No description provided")) return;
-
-  verifyToken(req.headers.jwt, (status, response) => {
-    if (!checkStatus(status, response, res)) return;
-      getUser(response.id, (status, user) => {
-      if (user.Privilege >= 1) {
-        const dbQuery = `INSERT INTO Product (Name, Price, Stock, Category, Description) VALUES ('${req.body.name}','${req.body.price}','${req.body.stock}','${req.body.category}','${req.body.description}')`;
-        query(dbQuery, res);
-        return;
-      } else {
-        res.status(403);
-        res.send({
-          errorCode: 403,
-          error: "FORBIDDEN",
-          description: "User not allwed to do that"
-        });
-      }
-    });
-  });
-});
-
-app.put('/product/:id', (req, res) => {
-  if (!verifyParam(res, req.body.name, "No name provided")) return;
-  if (!verifyParam(res, req.body.price, "No name price")) return;
-  if (!verifyParam(res, req.body.stock, "No stock provided")) return;
-  if (!verifyParam(res, req.body.category, "No category provided")) return;
+  if (!verifyIsInt(res, req.body.price, "No price INT provided")) return;
+  if (!verifyIsInt(res, req.body.discountPrice, "No discountPrice INT provided")) return;
+  if (!verifyIsInt(res, req.body.stock, "No stock INT provided")) return;
+  if (!verifyIsInt(res, req.body.category, "No category INT provided")) return;
   if (!verifyParam(res, req.body.description, "No description provided")) return;
   if (!verifyParam(res, req.body.image, "No image url provided")) return;
   if (!verifyParam(res, req.body.imageDescription, "No image description provided")) return;
-
-  verifyToken(req.headers.jwt, (status, response) => {
-    if (!checkStatus(status, response, res)) return;
-    getUser(response.id, (status, user) => {
-      if (user.Privilege >= 1) {
-        const dbQuery = `INSERT INTO Product (Name, Price, Stock, Category, Description) VALUES ('${req.body.name}','${req.body.price}','${req.body.stock}','${req.body.category}','${req.body.description}')`;
-        query(dbQuery, res);
-        return;
-      } else {
-        res.status(403);
-        res.send({
-          errorCode: 403,
-          error: "FORBIDDEN",
-          description: "User not allwed to do that"
+  if (!verifyIsInt(res, req.body.archived, "No archieved INT provided")) return;
+  try {
+    const token = await promiseVerifyToken(req.headers.jwt);
+    const user = promiseGetUser(token.id);
+    if (user.Privilege === 0) { 
+      res.status(403);
+      res.send({
+        errorCode: 403,
+        error: "FORBIDDEN",
+        description: "User not allwed to do that"
+      });
+      return;
+     }
+     dbConnection.beginTransaction(async (err) => {
+      if (err) { throw err; }
+      try {
+        const productQuery = `INSERT INTO Product (Name, Price, DiscountPrice, Stock, Category, Description, Archived) VALUES ('${req.body.name}','${req.body.price}','${req.body.discountPrice}','${req.body.stock}','${req.body.category}','${req.body.description}','${req.body.archived}');`;
+        const productResult = await promiseQuery(productQuery);
+        const lastIdQuery = `SELECT LAST_INSERT_ID();`;
+        const lastIdResult = await promiseQuery(lastIdQuery);
+        const productIdPacket = lastIdResult[0];
+        const productId = productIdPacket['LAST_INSERT_ID()'];
+        const imageQuery = `INSERT INTO Image (url, caption, product) VALUES ('${req.body.image}', '${req.body.imageDescription}', '${productId}');`;
+        const imageResult = await promiseQuery(imageQuery);
+        dbConnection.commit((err) => {
+          if (err) {
+            return connection.rollback(() => {
+              throw err;
+            });
+          }
+          send(res, {productResult, imageResult});
+        })
+      } catch (e) {
+        return dbConnection.rollback(() => {
+          throw e;
         });
       }
-    });
-  });
+     })
+  } catch (error) {
+    console.error(error);
+    send(res, error, error.errorCode || 500);
+  }
+});
+
+app.put('/product/:productId', async (req, res) => {
+  if (!verifyParam(res, req.body.name, "No name provided")) return;
+  if (!verifyIsInt(res, req.body.price, "No name price")) return;
+  if (!verifyIsInt(res, req.body.discountPrice, "No discountPrice provided")) return;
+  if (!verifyIsInt(res, req.body.stock, "No stock provided")) return;
+  if (!verifyIsInt(res, req.body.category, "No category provided")) return;
+  if (!verifyParam(res, req.body.description, "No description provided")) return;
+  if (!verifyParam(res, req.body.image, "No image url provided")) return;
+  if (!verifyParam(res, req.body.imageDescription, "No image description provided")) return;
+  if (!verifyIsInt(res, req.body.archived, "No archieved provided")) return;
+
+  try {
+    const token = await promiseVerifyToken(req.headers.jwt);
+    const user = promiseGetUser(token.id);
+    if (user.Privilege === 0) { 
+      res.status(403);
+      res.send({
+        errorCode: 403,
+        error: "FORBIDDEN",
+        description: "User not allwed to do that"
+      });
+      return;
+     }
+     dbConnection.beginTransaction(async (erro) => {
+      if (erro) { throw erro; }
+      try {
+        const pId = req.params.productId;
+        const productQuery = `UPDATE Product SET Name = '${req.body.name}', Price = '${req.body.price}', DiscountPrice = '${req.body.discountPrice}', Stock = '${req.body.stock}', \`Category\` = '${req.body.category}', Description = '${req.body.description}', Archived = '${req.body.archived}' WHERE ID = '${pId}';`;
+        console.log(productQuery);
+        const productResult = await promiseQuery(productQuery);
+        const getImageQuery = `SELECT * FROM Image WHERE product = '${pId}';`;
+        const getImageResult = await promiseQuery(getImageQuery);
+        const image = getImageResult[0];
+        const imageQuery = `UPDATE Image SET url = '${req.body.image}', caption = '${req.body.imageDescription}', product = '${pId}' WHERE ID = '${image.ID}';`;
+        console.log(imageQuery);
+        const imageResult = await promiseQuery(imageQuery);
+        dbConnection.commit((er) => {
+          if (er) {
+            return connection.rollback(() => {
+              throw er;
+            });
+          }
+          send(res, {productResult, imageResult});
+        })
+      } catch (e) {
+        return dbConnection.rollback(() => {
+          throw e;
+        });
+      }
+     })
+  } catch (error) {
+    console.error(error);
+    send(res, error, error.errorCode || 500);
+  }
 })
 
 /* Comments */
@@ -623,6 +688,46 @@ app.post('/orders', async (req, res) => {
         console.log({error, func: "4"});
         send(res, error, error.errorCode);
       });
+    }
+  })
+
+  // function isAdmin(jwt) {
+  //   const promise = new Promise(async(resolve, reject) => {
+  //     try {
+  //       const token = await promiseVerifyToken(jwt);
+  //       const user = await promiseGetUser(token.id);
+  //       const admin = user.Privilege > 0 ? true : false;
+  //       resolve(admin);
+  //     } catch (error) {
+  //       throw error;
+  //     }
+  //   })
+  //   return Promise.all([promise]);
+  // }
+
+  app.get("/test", (req, res) => {
+    send(res, "OK");
+  })
+
+  app.patch("/orders/:orderId", async (req, res) => {
+    if (!verifyParam(res, req.body.orderStatus, "No orderStatus provided")) return;
+    // if (!isAdmin(req.headers.jwt)) {
+    //   res.status(403);
+    //   res.send({
+    //     errorCode: 403,
+    //     error: "UNAUTHORIZED",
+    //     description: "User not admin"
+    //   });
+    //   return;
+    // }
+    const cId = req.params.orderId;
+    const dbQuery = `UPDATE Orders SET OrderStatus = '${req.body.orderStatus}' WHERE ID = '${cId}'`;
+    try {
+      const result = await promiseQuery(dbQuery);
+      send(res, result);
+    } catch (error) {
+      console.log(error);
+      send(res, error, error.errorCode || 500);
     }
   })
 });
