@@ -30,7 +30,7 @@ app.listen(port, () => {
   console.log(`Example app listening on port ${port}`);
   dbConnection.connect(err => {
     if (err) {
-      console.log(err);
+      console.error(err);
       throw err;
     }
     console.log("Database connected");
@@ -338,7 +338,6 @@ app.get("/products", (req, res) => {
     q += " AND Archived = 0";
   }
   const dbQuery = `SELECT * FROM vProductInfo${q};`;
-  console.log(dbQuery)
   query(dbQuery, res);  
 });
 
@@ -430,13 +429,11 @@ app.put('/product/:productId', async (req, res) => {
       try {
         const pId = req.params.productId;
         const productQuery = `UPDATE Product SET Name = '${req.body.name}', Price = '${req.body.price}', DiscountPrice = '${req.body.discountPrice}', Stock = '${req.body.stock}', \`Category\` = '${req.body.category}', Description = '${req.body.description}', Archived = '${req.body.archived}' WHERE ID = '${pId}';`;
-        console.log(productQuery);
         const productResult = await promiseQuery(productQuery);
         const getImageQuery = `SELECT * FROM Image WHERE product = '${pId}';`;
         const getImageResult = await promiseQuery(getImageQuery);
         const image = getImageResult[0];
         const imageQuery = `UPDATE Image SET url = '${req.body.image}', caption = '${req.body.imageDescription}', product = '${pId}' WHERE ID = '${image.ID}';`;
-        console.log(imageQuery);
         const imageResult = await promiseQuery(imageQuery);
         dbConnection.commit((er) => {
           if (er) {
@@ -668,24 +665,20 @@ app.post('/orders', async (req, res) => {
               await promiseQuery(orderDetailQuery);
               dbConnection.commit(error => {
                 if (error) {
-                  console.log({error, func: "1"});
                   throw error;
                 }
               })
             } catch (error) {
-              console.log({error, func: "2"});
               throw error;
             }
         });
         // Commit
         send(res, "SUCCESS");
       } catch (error) {
-        console.log({error, func: "3"});
         throw error;
       }
     } catch (error) {
       dbConnection.rollback(() => {
-        console.log({error, func: "4"});
         send(res, error, error.errorCode);
       });
     }
@@ -711,22 +704,21 @@ app.post('/orders', async (req, res) => {
 
   app.patch("/orders/:orderId", async (req, res) => {
     if (!verifyParam(res, req.body.orderStatus, "No orderStatus provided")) return;
-    // if (!isAdmin(req.headers.jwt)) {
-    //   res.status(403);
-    //   res.send({
-    //     errorCode: 403,
-    //     error: "UNAUTHORIZED",
-    //     description: "User not admin"
-    //   });
-    //   return;
-    // }
+    if (!isAdmin(req.headers.jwt)) {
+      res.status(403);
+      res.send({
+        errorCode: 403,
+        error: "UNAUTHORIZED",
+        description: "User not admin"
+      });
+      return;
+    }
     const cId = req.params.orderId;
     const dbQuery = `UPDATE Orders SET OrderStatus = '${req.body.orderStatus}' WHERE ID = '${cId}'`;
     try {
       const result = await promiseQuery(dbQuery);
       send(res, result);
     } catch (error) {
-      console.log(error);
       send(res, error, error.errorCode || 500);
     }
   })
